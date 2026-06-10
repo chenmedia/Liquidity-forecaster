@@ -208,6 +208,8 @@ Special case: any payment already in `RetryingInsufficientFunds` ⇒ immediate
   **incoming webhook** (or bot token). Phase 2 may add email/calendar.
 
 ### 7.5 Slack delivery details
+- **Target:** the shared **`#finance`** Slack channel (not a DM) — keeps the owner
+  and anyone else with finance responsibility in the loop.
 - **Transport:** Slack Incoming Webhook URL (or a bot token + `chat.postMessage`),
   stored as a secret (`SLACK_WEBHOOK_URL` / `SLACK_BOT_TOKEN`) — never committed.
   *(No Slack MCP/integration is wired up yet — this is a v1 build dependency.)*
@@ -229,8 +231,26 @@ Special case: any payment already in `RetryingInsufficientFunds` ⇒ immediate
   Otherwise **stay silent** (no daily repeat of an unchanged amber).
 - **Threading (optional, phase 2):** keep one Slack thread per ongoing breach so
   follow-up updates reply in-thread rather than spawning new top-level messages.
-- **Failure handling:** if the Slack post fails, retry with backoff; if still failing,
-  record it so the next successful run reports the gap (never silently drop a RED).
+- **Failure handling:** if the Slack post fails, retry with backoff (e.g. 3 attempts).
+  If still failing, fall back to email (§7.6) and record the gap in `alert_state` so
+  the next successful Slack run reports it (never silently drop a RED).
+
+### 7.6 Email fallback
+Email is a **fallback only** — it fires when Slack delivery cannot be confirmed, so a
+breach alert is never lost because Slack is down or misconfigured.
+
+- **Trigger:** Slack post fails after all retries (network error, bad webhook, 4xx/5xx).
+  Not sent when Slack succeeds (no double-notify).
+- **Recipient:** the owner (`kai@chenmedia.no`); recipient list configurable.
+- **Transport:** Gmail (connected here) or SMTP; sender/credentials from secrets.
+- **Content:** the same payload as the Slack message (severity, first breach date,
+  trough balance, shortfall, lead time, driver payments, "draw on Savings?" line,
+  confidence flag), rendered as text/HTML instead of Block Kit. Subject encodes
+  severity, e.g. `[RED] Operational cash below floor on 2026-07-02 — shortfall 84 000 NOK`.
+- **Dedup:** the email obeys the same state-change-only rule (§7.5) — it represents the
+  *same* alert that failed to reach Slack, not an independent channel that re-notifies.
+- **Recovery:** once Slack delivery succeeds again, the next run posts a short note that
+  earlier alert(s) were delivered via email fallback during the outage.
 
 ### 7.4 FX risk note
 Payments may be foreign (`currencyAmount.currency` ≠ NOK, with `foreignPaymentInfo`).
@@ -250,7 +270,8 @@ hedge or optimise.
             │  3. fetch payments(→+8w)│
             │  4. build projection    │
             │  5. evaluate floor      │
-            │  6. notify on change    │──▶ Slack (incoming webhook / bot token)
+            │  6. notify on change    │──▶ Slack #finance (webhook / bot token)
+            │                         │··▶ Email fallback (on Slack failure)
             └───────────┬─────────────┘
                         │
               ┌─────────▼─────────┐
@@ -288,8 +309,10 @@ scheduled_payment  (id PK, event_id, debtor_account_number, execution_date,
 
 config             (operational_floor, warning_band_pct, horizon_days,
                     include_drafts BOOL, base_currency='NOK',
-                    slack_target, trough_change_delta_pct=5)
-                    # slack_webhook_url / slack_bot_token come from secrets, not here
+                    slack_target='#finance', trough_change_delta_pct=5,
+                    fallback_email='kai@chenmedia.no')
+                    # slack_webhook_url / slack_bot_token / smtp creds come from
+                    # secrets, not here
 
 alert_state        (date, level, trough_date, trough_balance, breach_first_date,
                     notified_at)   # for state-change-only notifications
@@ -321,10 +344,10 @@ alert_state        (date, level, trough_date, trough_balance, breach_first_date,
 
 ## 11. Open questions
 
-1. ~~**Notification channel(s)** for v1~~ — **Resolved: Slack** (incoming webhook /
-   bot token, state-change-only sends; see §7.3/§7.5). Open sub-question: post to a
-   shared channel or DM the owner? And do we want phase-2 email as a fallback when
-   Slack delivery fails?
+1. ~~**Notification channel(s)** for v1~~ — **Resolved: Slack** to the shared
+   **`#finance`** channel (incoming webhook / bot token, state-change-only sends;
+   §7.3/§7.5), with an **email fallback** to the owner that fires only when Slack
+   delivery fails (§7.6).
 2. **Default floor & horizon** values — what numbers does ChenMedia actually run with?
 3. **Recurring baseline in v1?** Ship v1 with baseline = 0 (conservative, scheduled-only)
    and add the trend-derived run-rate in phase 2, or include it from the start?
@@ -342,8 +365,9 @@ alert_state        (date, level, trough_date, trough_balance, breach_first_date,
 - **M1 — History sync + cache.** Backfill `daily_balance`, incremental refresh.
 - **M2 — Projection engine.** Scheduled payments + current balance → daily curve;
   committed/draft scenarios.
-- **M3 — Floor & Slack alerts.** Floor config, RED/AMBER/GREEN, Block Kit message,
-  Slack webhook delivery, state-change-only send rule (§7.5).
+- **M3 — Floor & Slack alerts.** Floor config, RED/AMBER/GREEN, Block Kit message to
+  `#finance`, Slack webhook delivery, state-change-only send rule (§7.5), and email
+  fallback on Slack failure (§7.6).
 - **M4 — Lumpiness UX.** Surface the drivers of each dip; "with reserves" view.
 - **M5 — Phase 2.** Recurring baseline from history, `/events` enrichment, FX handling,
   extra notification channels.
