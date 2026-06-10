@@ -27,7 +27,8 @@ The specification is split into focused documents under [`docs/`](docs/):
 | 06 | [Security & privacy](docs/06-security.md) | Threat model, secrets, data protection, GDPR |
 | 07 | [Roadmap](docs/07-roadmap.md) | Milestones, acceptance criteria, open questions |
 
-The vendored Folio OpenAPI definition lives in
+Supporting docs: [`docs/SECRETS.md`](docs/SECRETS.md) (how to supply credentials
+safely) and the vendored Folio OpenAPI definition in
 [`reference/folio-api.json`](reference/folio-api.json).
 
 ---

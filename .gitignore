@@ -2,6 +2,9 @@
 .env
 .env.*
 *.env
+# The placeholder template is safe and SHOULD be committed (negation must be its
+# own line — gitignore does not support trailing inline comments).
+!.env.example
 secrets/
 *.pem
 *.key
