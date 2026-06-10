@@ -1,0 +1,28 @@
+# gitleaks configuration for Liquidity Forecaster
+# Runs locally (pre-commit) and in CI (.github/workflows/secret-scan.yml).
+# Docs: https://github.com/gitleaks/gitleaks
+
+title = "Liquidity Forecaster secret-scan rules"
+
+# Start from gitleaks' built-in ruleset (AWS keys, generic tokens, etc.)…
+[extend]
+useDefault = true
+
+# …and add a rule for Folio API keys, which look like `fk.<~40+ base62 chars>`.
+[[rules]]
+id = "folio-api-key"
+description = "Folio API key"
+regex = '''fk\.[A-Za-z0-9_-]{30,}'''
+keywords = ["fk."]
+
+[allowlist]
+description = "Placeholders and templates that are safe to commit"
+# Never flag the env template (placeholder values only).
+paths = [
+  '''\.env\.example$''',
+]
+# Belt-and-suspenders: ignore obvious placeholder values.
+regexes = [
+  '''replace-me''',
+  '''your[-_]?(secret|token|key)''',
+]

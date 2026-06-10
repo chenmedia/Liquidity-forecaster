@@ -48,7 +48,9 @@ requirements (secrets management, least-privilege, data protection, logging
 redaction, dependency hygiene, GDPR) are specified in
 [`docs/06-security.md`](docs/06-security.md) and must be met by any implementation.
 The repository ships a [`.gitignore`](.gitignore) that blocks secrets, local
-databases, and environment files from ever being committed.
+databases, and environment files from ever being committed, plus **gitleaks
+secret scanning** as a pre-commit hook and a CI backstop (see
+[`docs/SECRETS.md`](docs/SECRETS.md)).
 
 ## Repository layout
 

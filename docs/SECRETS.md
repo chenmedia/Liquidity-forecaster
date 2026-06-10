@@ -47,6 +47,26 @@ Do **not** ship a `.env`. Inject variables from the platform's secret store:
 
 ---
 
+## Automated secret scanning
+
+The repo is wired to catch secrets before they're committed and again in CI:
+
+- **Local (pre-commit):** [gitleaks](https://github.com/gitleaks/gitleaks) runs on every
+  `git commit`. Enable it once per clone:
+  ```bash
+  pip install pre-commit     # or: brew install pre-commit
+  pre-commit install
+  ```
+  Config: [`.pre-commit-config.yaml`](../.pre-commit-config.yaml) +
+  [`.gitleaks.toml`](../.gitleaks.toml) (includes a custom rule for Folio `fk.` keys
+  and an allowlist for `.env.example`).
+- **CI (backstop):** [`.github/workflows/secret-scan.yml`](../.github/workflows/secret-scan.yml)
+  runs gitleaks over the **full history** on every push and PR. Local hooks can be
+  bypassed with `--no-verify`; CI cannot, so this is the real enforcement.
+
+If a scan ever fires, **do not** `--no-verify` around it — rotate the exposed secret
+(below) and remove it from the change.
+
 ## Rotation & incident response
 
 Rotate immediately (treat the old value as compromised) if a secret is ever pasted
