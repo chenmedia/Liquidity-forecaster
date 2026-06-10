@@ -1,0 +1,64 @@
+name: Liquidity forecast
+
+# Runs the forecaster on a schedule and alerts #finance (with email fallback).
+# Safe to merge before secrets exist: if FOLIO_API_KEY is not configured the run
+# skips cleanly instead of failing. Provide repo Actions secrets to enable
+# (see docs/SECRETS.md): FOLIO_API_KEY, SLACK_WEBHOOK_URL, and optionally SMTP_*.
+
+on:
+  schedule:
+    - cron: "0 6 * * *" # 06:00 UTC daily
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Print the alert instead of sending it"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: liquidity-forecast
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Run forecaster
+        env:
+          FOLIO_API_KEY: ${{ secrets.FOLIO_API_KEY }}
+          FOLIO_API_BASE_URL: ${{ secrets.FOLIO_API_BASE_URL }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_CHANNEL: ${{ vars.SLACK_CHANNEL }}
+          SMTP_HOST: ${{ secrets.SMTP_HOST }}
+          SMTP_PORT: ${{ secrets.SMTP_PORT }}
+          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
+          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          ALERT_EMAIL_FROM: ${{ secrets.ALERT_EMAIL_FROM }}
+          ALERT_EMAIL_TO: ${{ vars.ALERT_EMAIL_TO }}
+          FORECAST_FLOOR: ${{ vars.FORECAST_FLOOR }}
+          FORECAST_HORIZON_DAYS: ${{ vars.FORECAST_HORIZON_DAYS }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ -z "$FOLIO_API_KEY" ]; then
+            echo "FOLIO_API_KEY is not configured — skipping. Set repo secrets to enable (docs/SECRETS.md)."
+            exit 0
+          fi
+          if [ "$DRY_RUN" = "true" ]; then
+            python -m liquidity_forecaster run --dry-run
+          else
+            python -m liquidity_forecaster run
+          fi

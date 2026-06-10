@@ -1,0 +1,48 @@
+[project]
+name = "liquidity-forecaster"
+version = "0.1.0"
+description = "Read-only cash-position forecaster on the Folio API: projects operational cash and alerts before it drops below a floor."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+authors = [{ name = "ChenMedia" }]
+dependencies = [
+    "httpx>=0.27,<0.29",
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2,<9",
+    "respx>=0.22,<0.23",
+    "ruff>=0.5,<1",
+    "mypy>=1.10,<2",
+]
+
+[project.scripts]
+liquidity-forecaster = "liquidity_forecaster.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["liquidity_forecaster"]
+mypy_path = "src"
+strict = true
+warn_unused_ignores = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

@@ -8,7 +8,8 @@ weeks out — then **alerts in Slack before operational cash drops below a floor
 you set. This matters when festival and wedding work makes inflows and outflows
 large and lumpy.
 
-> **Status:** Specification — Draft v1. No application code yet.
+> **Status:** v1 implementation in progress — spec complete, Python forecaster
+> (milestones M1–M3) landing.
 > **Owner:** kai@chenmedia.no · **Last updated:** 2026-06-10
 
 ---
@@ -41,6 +42,27 @@ safely) and the vendored Folio OpenAPI definition in
 - **Conservative by default** — v1 projects from current balance + scheduled items only
   (recurring run-rate baseline is phase 2).
 
+## Running it
+
+```bash
+python -m venv .venv && . .venv/bin/activate
+pip install -e ".[dev]"            # or just -e . for runtime only
+
+export FOLIO_API_KEY=…             # from a secret store, never committed (docs/SECRETS.md)
+
+python -m liquidity_forecaster accounts        # print balances by bucket (read-only)
+python -m liquidity_forecaster run --dry-run    # project + show the alert without sending
+python -m liquidity_forecaster run              # send to Slack #finance (email fallback)
+python -m liquidity_forecaster sync-history     # backfill cached daily balances
+```
+
+Run `run --scenario drafts` to include `Draft` payments (pessimistic). On a schedule,
+the [`forecast.yml`](.github/workflows/forecast.yml) GitHub Actions workflow runs it
+daily once the repo secrets are set; it skips cleanly until then.
+
+**Develop:** `pytest -q`, `ruff check src tests`, `mypy src`. See
+[`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Security
 
 This tool handles live banking credentials and financial data. Security
@@ -57,15 +79,14 @@ secret scanning** as a pre-commit hook and a CI backstop (see
 ```
 .
 ├── README.md                  # this file
+├── pyproject.toml             # package, deps, ruff/mypy/pytest config
 ├── .gitignore                 # blocks secrets / db / env from commits
-├── docs/                      # the specification, split by concern
-│   ├── 01-overview.md
-│   ├── 02-data-and-accounts.md
-│   ├── 03-forecast.md
-│   ├── 04-alerting.md
-│   ├── 05-architecture.md
-│   ├── 06-security.md
-│   └── 07-roadmap.md
-└── reference/
-    └── folio-api.json         # vendored Folio OpenAPI v2 definition
+├── src/liquidity_forecaster/  # the application
+│   ├── config.py  money.py  models.py  folio_client.py
+│   ├── forecast.py  alerting.py  store.py  pipeline.py  cli.py
+│   └── notify/                # slack.py, email_fallback.py, message.py
+├── tests/                     # acceptance tests (AC-1..AC-11) + fixtures
+├── docs/                      # the specification, split by concern (01..07, SECRETS)
+├── reference/folio-api.json   # vendored Folio OpenAPI v2 definition
+└── .github/workflows/         # ci.yml, secret-scan.yml, forecast.yml (scheduled)
 ```
