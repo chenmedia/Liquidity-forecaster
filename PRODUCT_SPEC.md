@@ -203,8 +203,34 @@ Special case: any payment already in `RetryingInsufficientFunds` ⇒ immediate
 - Run on a schedule (e.g. daily each morning) — no webhooks in the Folio API, so
   the forecaster **polls**.
 - Notify only on **state change** or **new/worsened breach** to avoid alert fatigue
-  (don't re-send the same amber every day).
-- Channels: phase 1 = email to owner; phase 2 = calendar/Slack/etc. (TBD — see §11).
+  (don't re-send the same amber every day). See §7.5 for the exact send rule.
+- **Channel (v1): Slack.** Alerts post to a configured Slack channel/DM via an
+  **incoming webhook** (or bot token). Phase 2 may add email/calendar.
+
+### 7.5 Slack delivery details
+- **Transport:** Slack Incoming Webhook URL (or a bot token + `chat.postMessage`),
+  stored as a secret (`SLACK_WEBHOOK_URL` / `SLACK_BOT_TOKEN`) — never committed.
+  *(No Slack MCP/integration is wired up yet — this is a v1 build dependency.)*
+- **Message format:** Block Kit message with:
+  - Header line with severity emoji — 🔴 RED / 🟡 AMBER / 🟢 GREEN (green only on
+    recovery, see send rule).
+  - One-line summary: first breach date, projected trough balance, shortfall vs floor,
+    and lead time in business days.
+  - A short list of the **driver payments** (date · creditor · amount) causing the dip.
+  - A "draw on Savings clears it?" yes/no line.
+  - Footer: forecast run timestamp + data-confidence flag (see §10 staleness rule).
+- **Send rule (state-change-only):** compare against `alert_state` from the last run.
+  Send when:
+  - severity **worsens** (GREEN→AMBER, AMBER→RED, or GREEN→RED), **or**
+  - severity is unchanged but the **trough balance drops materially** (configurable
+    delta, default ≥ 5%) or the **breach date moves earlier**, **or**
+  - severity **recovers** to GREEN (send one "all clear"), **or**
+  - any payment enters `RetryingInsufficientFunds` (always send, RED — see §7.2).
+  Otherwise **stay silent** (no daily repeat of an unchanged amber).
+- **Threading (optional, phase 2):** keep one Slack thread per ongoing breach so
+  follow-up updates reply in-thread rather than spawning new top-level messages.
+- **Failure handling:** if the Slack post fails, retry with backoff; if still failing,
+  record it so the next successful run reports the gap (never silently drop a RED).
 
 ### 7.4 FX risk note
 Payments may be foreign (`currencyAmount.currency` ≠ NOK, with `foreignPaymentInfo`).
@@ -224,7 +250,7 @@ hedge or optimise.
             │  3. fetch payments(→+8w)│
             │  4. build projection    │
             │  5. evaluate floor      │
-            │  6. notify on change    │
+            │  6. notify on change    │──▶ Slack (incoming webhook / bot token)
             └───────────┬─────────────┘
                         │
               ┌─────────▼─────────┐
@@ -261,7 +287,9 @@ scheduled_payment  (id PK, event_id, debtor_account_number, execution_date,
                     amount, currency, creditor_name, state, fetched_at)
 
 config             (operational_floor, warning_band_pct, horizon_days,
-                    include_drafts BOOL, base_currency='NOK')
+                    include_drafts BOOL, base_currency='NOK',
+                    slack_target, trough_change_delta_pct=5)
+                    # slack_webhook_url / slack_bot_token come from secrets, not here
 
 alert_state        (date, level, trough_date, trough_balance, breach_first_date,
                     notified_at)   # for state-change-only notifications
@@ -293,7 +321,10 @@ alert_state        (date, level, trough_date, trough_balance, breach_first_date,
 
 ## 11. Open questions
 
-1. **Notification channel(s)** for v1 — email only, or also calendar/Slack/SMS?
+1. ~~**Notification channel(s)** for v1~~ — **Resolved: Slack** (incoming webhook /
+   bot token, state-change-only sends; see §7.3/§7.5). Open sub-question: post to a
+   shared channel or DM the owner? And do we want phase-2 email as a fallback when
+   Slack delivery fails?
 2. **Default floor & horizon** values — what numbers does ChenMedia actually run with?
 3. **Recurring baseline in v1?** Ship v1 with baseline = 0 (conservative, scheduled-only)
    and add the trend-derived run-rate in phase 2, or include it from the start?
@@ -311,7 +342,8 @@ alert_state        (date, level, trough_date, trough_balance, breach_first_date,
 - **M1 — History sync + cache.** Backfill `daily_balance`, incremental refresh.
 - **M2 — Projection engine.** Scheduled payments + current balance → daily curve;
   committed/draft scenarios.
-- **M3 — Floor & alerts.** Floor config, RED/AMBER/GREEN, state-change notifications.
+- **M3 — Floor & Slack alerts.** Floor config, RED/AMBER/GREEN, Block Kit message,
+  Slack webhook delivery, state-change-only send rule (§7.5).
 - **M4 — Lumpiness UX.** Surface the drivers of each dip; "with reserves" view.
 - **M5 — Phase 2.** Recurring baseline from history, `/events` enrichment, FX handling,
   extra notification channels.
