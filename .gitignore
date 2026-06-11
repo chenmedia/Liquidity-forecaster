@@ -1,0 +1,52 @@
+# ─── Secrets & credentials (NEVER commit) ────────────────────────────────────
+.env
+.env.*
+*.env
+# The placeholder template is safe and SHOULD be committed (negation must be its
+# own line — gitignore does not support trailing inline comments).
+!.env.example
+secrets/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+credentials.json
+service-account*.json
+*token*.json
+.netrc
+
+# ─── Local data store (financial / personal data) ────────────────────────────
+*.sqlite
+*.sqlite3
+*.db
+data/
+cache/
+*.local.json
+config.local.*
+
+# ─── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# ─── Node / TypeScript ───────────────────────────────────────────────────────
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+npm-debug.log*
+yarn-error.log*
+
+# ─── OS / editor cruft ───────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*~
