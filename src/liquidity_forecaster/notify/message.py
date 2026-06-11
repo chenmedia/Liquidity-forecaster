@@ -59,6 +59,8 @@ def render_text(f: Forecast) -> str:
         lines += ["", "⚠️ A payment is retrying for insufficient funds — funds are short now."]
     if f.low_confidence:
         lines += ["", "Note: forecast confidence is low (pending/unsettled transactions)."]
+    if f.fx_variable:
+        lines += ["", "Note: includes non-NOK payment(s) — FX-variable until execution."]
     return "\n".join(lines)
 
 
@@ -99,5 +101,7 @@ def render_blocks(f: Forecast) -> list[dict[str, object]]:
     footer = "Forecast horizon to " + f.end_date.isoformat()
     if f.low_confidence:
         footer += " · ⚠️ low confidence (unsettled transactions)"
+    if f.fx_variable:
+        footer += " · 💱 FX-variable (non-NOK payments)"
     blocks.append({"type": "context", "elements": [{"type": "mrkdwn", "text": footer}]})
     return blocks

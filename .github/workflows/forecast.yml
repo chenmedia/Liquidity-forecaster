@@ -37,6 +37,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e .
 
+      # Persist the alert-state DB across runs so the state-change-only send rule
+      # works (runners are ephemeral). Best-effort: a cache miss at worst causes a
+      # single duplicate alert. A fresh cache is saved each run via the unique key.
+      - name: Restore alert state
+        uses: actions/cache@v4
+        with:
+          path: data
+          key: forecaster-db-${{ github.run_id }}
+          restore-keys: forecaster-db-
+
       - name: Run forecaster
         env:
           FOLIO_API_KEY: ${{ secrets.FOLIO_API_KEY }}

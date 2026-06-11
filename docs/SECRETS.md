@@ -61,6 +61,7 @@ To enable it, add these under **Settings → Secrets and variables → Actions**
 |---|---|
 | `SLACK_CHANNEL` (default `#finance`), `ALERT_EMAIL_TO` | Routing |
 | `FORECAST_FLOOR`, `FORECAST_HORIZON_DAYS` | Tune thresholds without code changes |
+| `FOLIO_OPERATIONAL_ACCOUNT` | Which Operational account to forecast (if you run several) |
 
 Manual runs (**Actions → Liquidity forecast → Run workflow**) default to **dry-run**.
 

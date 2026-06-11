@@ -44,6 +44,10 @@ class Config:
     folio_base_url: str = field(
         default_factory=lambda: os.environ.get("FOLIO_API_BASE_URL", "https://api.folio.no/v2")
     )
+    # Disambiguates which Operational account to forecast when several exist.
+    operational_account: str | None = field(
+        default_factory=lambda: os.environ.get("FOLIO_OPERATIONAL_ACCOUNT") or None
+    )
 
     # Notification routing (non-secret)
     slack_channel: str = field(default_factory=lambda: os.environ.get("SLACK_CHANNEL", "#finance"))

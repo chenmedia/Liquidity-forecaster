@@ -51,6 +51,46 @@ def test_slack_success(monkeypatch) -> None:
     assert route.called
 
 
+@respx.mock
+def test_send_test_cli_posts_to_webhook(monkeypatch) -> None:
+    from liquidity_forecaster.cli import main
+
+    monkeypatch.setenv("SLACK_WEBHOOK_URL", "https://hooks.slack.com/services/T/B/secret")
+    route = respx.post("https://hooks.slack.com/services/T/B/secret").mock(
+        return_value=httpx.Response(200, text="ok")
+    )
+    assert main(["send-test"]) == 0
+    assert route.called
+
+
+def test_send_test_cli_errors_without_webhook(monkeypatch) -> None:
+    from liquidity_forecaster.cli import main
+
+    monkeypatch.delenv("SLACK_WEBHOOK_URL", raising=False)
+    assert main(["send-test"]) == 2
+
+
+def test_fx_note_in_message() -> None:
+    accounts = AccountsResponse.model_validate(fixtures.accounts_response()).accounts
+    payload = fixtures.payments_response()
+    payload["payments"].append(
+        {
+            "id": "fx1",
+            "eventId": "fx1",
+            "createdAt": "2026-06-01T08:00:00Z",
+            "createdByAgentId": "00000000-0000-0000-0000-000000000000",
+            "state": "InProcess",
+            "creditor": {"name": "EU Vendor", "accountNumber": "9999999999"},
+            "debtorAccountNumber": fixtures.OPERATIONAL_ACCOUNT,
+            "currencyAmount": {"amount": "5000.00", "currency": "EUR"},
+            "executionDate": "2026-06-20",
+        }
+    )
+    payments = PaymentsResponse.model_validate(payload).payments
+    f = build_forecast(accounts, payments, Config(), today=fixtures.TODAY)
+    assert "FX-variable" in render_text(f)
+
+
 def test_redaction_filter_masks_token_and_account() -> None:
     record = logging.LogRecord(
         name="t",

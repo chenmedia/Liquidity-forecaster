@@ -7,6 +7,7 @@ payments, placed on their execution date. No recurring run-rate baseline in v1.
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
@@ -15,9 +16,13 @@ from enum import IntEnum
 from .config import Config
 from .models import Account, AccountType, Payment, PaymentState
 
+log = logging.getLogger(__name__)
+
 # Scenario → which payment states count as outflows on the curve.
 _COMMITTED = {PaymentState.IN_PROCESS, PaymentState.RETRYING_INSUFFICIENT_FUNDS}
 _DRAFTS = _COMMITTED | {PaymentState.DRAFT}
+
+_BASE_CURRENCY = "NOK"
 
 
 class Severity(IntEnum):
@@ -39,6 +44,7 @@ class ScheduledItem:
     amount: Decimal  # the raw payment amount (outflow magnitude)
     delta: Decimal  # signed effect on balance
     state: PaymentState
+    currency: str = _BASE_CURRENCY
 
 
 @dataclass(frozen=True)
@@ -58,6 +64,7 @@ class Forecast:
     severity: Severity
     has_retrying: bool
     low_confidence: bool
+    fx_variable: bool = False
 
     @property
     def shortfall(self) -> Decimal:
@@ -101,6 +108,7 @@ def scheduled_items(
                 amount=amount,
                 delta=-amount,
                 state=p.state,
+                currency=p.currency_amount.currency,
             )
         )
     items.sort(key=lambda i: i.execution_date)
@@ -116,7 +124,7 @@ def build_forecast(
     include_drafts: bool = False,
 ) -> Forecast:
     """Project the operational balance over the horizon and classify severity."""
-    operational = _single(accounts, AccountType.OPERATIONAL)
+    operational = _select_operational(accounts, config.operational_account)
     savings = _optional(accounts, AccountType.SAVINGS)
     savings_balance = savings.balance if savings else Decimal(0)
 
@@ -153,6 +161,15 @@ def build_forecast(
 
     low_confidence = operational.matching_transactions_at.date() < (today - timedelta(days=2))
 
+    fx_items = [i for i in items if i.currency != _BASE_CURRENCY]
+    if fx_items:
+        log.warning(
+            "%d scheduled payment(s) are not in %s; counted at face value — "
+            "the NOK debit is not fixed until execution (FX-variable)",
+            len(fx_items),
+            _BASE_CURRENCY,
+        )
+
     return Forecast(
         operational_account=operational.account_number,
         start_date=start,
@@ -169,14 +186,35 @@ def build_forecast(
         severity=severity,
         has_retrying=has_retrying,
         low_confidence=low_confidence,
+        fx_variable=bool(fx_items),
     )
 
 
-def _single(accounts: list[Account], account_type: AccountType) -> Account:
-    matches = [a for a in accounts if a.type is account_type]
-    if not matches:
-        raise ValueError(f"no {account_type.value} account found")
-    return matches[0]
+def _select_operational(accounts: list[Account], configured: str | None) -> Account:
+    """Pick the Operational account to forecast.
+
+    If ``configured`` is set, require that exact account. Otherwise take the single
+    Operational account, or — when several exist — warn and pick deterministically
+    (lowest account number) so the choice is stable across runs.
+    """
+    operational = [a for a in accounts if a.type is AccountType.OPERATIONAL]
+    if not operational:
+        raise ValueError("no Operational account found")
+    if configured is not None:
+        match = next((a for a in operational if a.account_number == configured), None)
+        if match is None:
+            raise ValueError(f"configured Operational account {configured} not found")
+        return match
+    if len(operational) > 1:
+        chosen = min(operational, key=lambda a: a.account_number)
+        log.warning(
+            "%d Operational accounts found; forecasting %s. Set FOLIO_OPERATIONAL_ACCOUNT "
+            "to choose explicitly.",
+            len(operational),
+            chosen.account_number,
+        )
+        return chosen
+    return operational[0]
 
 
 def _optional(accounts: list[Account], account_type: AccountType) -> Account | None:

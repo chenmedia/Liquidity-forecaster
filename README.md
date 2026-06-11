@@ -53,15 +53,28 @@ export FOLIO_API_KEY=…             # from a secret store, never committed (doc
 python -m liquidity_forecaster accounts        # print balances by bucket (read-only)
 python -m liquidity_forecaster run --dry-run    # project + show the alert without sending
 python -m liquidity_forecaster run              # send to Slack #finance (email fallback)
-python -m liquidity_forecaster sync-history     # backfill cached daily balances
+python -m liquidity_forecaster send-test        # post a sample alert to verify the webhook
+python -m liquidity_forecaster sync-history     # backfill cached daily balances (phase 2)
 ```
 
 Run `run --scenario drafts` to include `Draft` payments (pessimistic). On a schedule,
 the [`forecast.yml`](.github/workflows/forecast.yml) GitHub Actions workflow runs it
-daily once the repo secrets are set; it skips cleanly until then.
+daily once the repo secrets are set; it skips cleanly until then. If you run several
+Operational accounts, set `FOLIO_OPERATIONAL_ACCOUNT` to pick which one to forecast.
 
 **Develop:** `pytest -q`, `ruff check src tests`, `mypy src`. See
 [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+## Go-live checklist
+
+1. Merge PR #1 (spec) → `main`, then PR #2 (code) → `main`.
+2. **Rotate** the Folio API key; create a Slack **incoming webhook** for `#finance`.
+3. Add GitHub **Actions secrets** (`FOLIO_API_KEY`, `SLACK_WEBHOOK_URL`, optional `SMTP_*`)
+   and **variables** (`FORECAST_FLOOR`, `SLACK_CHANNEL`, `FOLIO_OPERATIONAL_ACCOUNT` if
+   needed) — see [`docs/SECRETS.md`](docs/SECRETS.md).
+4. Verify the channel: `send-test`. Then sanity-check live data: `accounts`, `run --dry-run`.
+5. Confirm the floor against real balances; let the daily workflow run.
+6. *(Optional)* require **CI** + **Secret scan** as status checks on `main`.
 
 ## Security
 
