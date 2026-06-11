@@ -45,6 +45,26 @@ Do **not** ship a `.env`. Inject variables from the platform's secret store:
   Vault, etc.), read at startup.
 - **Containers:** mounted secrets / orchestrator secrets — not baked into images.
 
+### Scheduled run on GitHub Actions
+
+The [`forecast.yml`](../.github/workflows/forecast.yml) workflow runs the forecaster
+daily. It **skips cleanly** until `FOLIO_API_KEY` is set, so it's safe to merge first.
+To enable it, add these under **Settings → Secrets and variables → Actions**:
+
+| As a **secret** | Purpose |
+|---|---|
+| `FOLIO_API_KEY` | Folio read access (required to enable the run) |
+| `SLACK_WEBHOOK_URL` | Post alerts to `#finance` |
+| `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `ALERT_EMAIL_FROM` | Email fallback |
+
+| As a **variable** (non-secret) | Purpose |
+|---|---|
+| `SLACK_CHANNEL` (default `#finance`), `ALERT_EMAIL_TO` | Routing |
+| `FORECAST_FLOOR`, `FORECAST_HORIZON_DAYS` | Tune thresholds without code changes |
+| `FOLIO_OPERATIONAL_ACCOUNT` | Which Operational account to forecast (if you run several) |
+
+Manual runs (**Actions → Liquidity forecast → Run workflow**) default to **dry-run**.
+
 ---
 
 ## Automated secret scanning
