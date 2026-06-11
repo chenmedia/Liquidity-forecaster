@@ -111,8 +111,9 @@ Illustrative numbers to make the model testable. Floor = 250 000, warning band =
 **Evaluation:**
 - Trough = **90 000 NOK on 2026-06-25**, which is **< floor (250 000)** → **RED**.
 - Shortfall vs floor at trough = 250 000 − 90 000 = **160 000 NOK**.
-- First breach date = 2026-06-15 (balance 300 000 < amber 312 500 → amber that day;
-  crosses floor at 2026-06-25). Lead time to RED ≈ 11 calendar days.
+- First amber day = 2026-06-15 (balance 300 000 < amber 312 500, still above floor) —
+  ~5 days out. The **floor breach (RED) date is 2026-06-25**, ~15 calendar days out;
+  this is the `first_breach_date` the alert reports as the "first crossing".
 - Drivers surfaced: Sound & Light (180 000), Payroll (210 000).
 - "Draw on Savings clears it?" Savings = 300 000; 90 000 + 300 000 = 390 000 > floor →
   **yes, moving ≥ 160 000 from Savings restores the floor.** Alert says so.

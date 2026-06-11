@@ -43,7 +43,7 @@ test fixture.
   money math. *(precision)*
 
 **Alerting**
-- **AC-6.** The worked example yields **RED**, first-breach date 2026-06-15, shortfall
+- **AC-6.** The worked example yields **RED**, floor-breach date **2026-06-25**, shortfall
   **160 000 NOK** at the trough, and lists Sound & Light + Payroll as drivers.
 - **AC-7.** "Draw on Savings clears it?" returns **yes** for the worked example
   (Savings 300 000 ≥ shortfall 160 000).
