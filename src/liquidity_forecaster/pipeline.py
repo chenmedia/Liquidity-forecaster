@@ -59,6 +59,42 @@ def sync_history(config: Config, *, today: date | None = None) -> int:
     return fetched
 
 
+def compute_forecast(
+    config: Config,
+    store: Store,
+    *,
+    today: date | None = None,
+    include_drafts: bool = False,
+) -> Forecast:
+    """Fetch live data and build the forecast (no alerting). Reused by the dashboard."""
+    today = today or date.today()
+    with FolioClient(config) as client:
+        accounts = client.get_accounts().accounts
+        end = today + timedelta(days=config.horizon_days)
+        payments = client.get_payments(today, end).payments
+
+    expected_inflows = load_expected_inflows(config.expected_inflows_file)
+
+    baseline = None
+    if config.enable_baseline:
+        op = _select_operational(accounts, config.operational_account)
+        since = today - timedelta(days=config.lookback_days)
+        nets = store.daily_nets(op.account_number, since)
+        baseline = compute_baseline(nets, k=config.baseline_mad_k) or None
+        if baseline is None:
+            log.info("baseline skipped: insufficient history (run sync-history to populate)")
+
+    return build_forecast(
+        accounts,
+        payments,
+        config,
+        today=today,
+        include_drafts=include_drafts,
+        baseline=baseline,
+        expected_inflows=expected_inflows,
+    )
+
+
 def run(
     config: Config,
     *,
@@ -68,33 +104,9 @@ def run(
 ) -> RunResult:
     """Full forecast + alert run."""
     today = today or date.today()
-    with FolioClient(config) as client:
-        accounts = client.get_accounts().accounts
-        end = today + timedelta(days=config.horizon_days)
-        payments = client.get_payments(today, end).payments
-
-    expected_inflows = load_expected_inflows(config.expected_inflows_file)
-
     store = Store(config.db_path)
     try:
-        baseline = None
-        if config.enable_baseline:
-            op = _select_operational(accounts, config.operational_account)
-            since = today - timedelta(days=config.lookback_days)
-            nets = store.daily_nets(op.account_number, since)
-            baseline = compute_baseline(nets, k=config.baseline_mad_k) or None
-            if baseline is None:
-                log.info("baseline skipped: insufficient history (run sync-history to populate)")
-
-        forecast = build_forecast(
-            accounts,
-            payments,
-            config,
-            today=today,
-            include_drafts=include_drafts,
-            baseline=baseline,
-            expected_inflows=expected_inflows,
-        )
+        forecast = compute_forecast(config, store, today=today, include_drafts=include_drafts)
 
         decision = decide_send(forecast, store.last_alert(), config)
         delivered_via: str | None = None

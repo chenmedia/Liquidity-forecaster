@@ -27,6 +27,7 @@ The specification is split into focused documents under [`docs/`](docs/):
 | 05 | [Architecture](docs/05-architecture.md) | Components, local data model, edge cases |
 | 06 | [Security & privacy](docs/06-security.md) | Threat model, secrets, data protection, GDPR |
 | 07 | [Roadmap](docs/07-roadmap.md) | Milestones, acceptance criteria, open questions |
+| 08 | [Web dashboard](docs/08-dashboard.md) | Vercel deploy: serverless API + dashboard, auth |
 
 Supporting docs: [`docs/SECRETS.md`](docs/SECRETS.md) (how to supply credentials
 safely) and the vendored Folio OpenAPI definition in
@@ -99,8 +100,17 @@ secret scanning** as a pre-commit hook and a CI backstop (see
 │   ├── config.py  money.py  models.py  folio_client.py
 │   ├── forecast.py  alerting.py  store.py  pipeline.py  cli.py
 │   └── notify/                # slack.py, email_fallback.py, message.py
-├── tests/                     # acceptance tests (AC-1..AC-11) + fixtures
-├── docs/                      # the specification, split by concern (01..07, SECRETS)
+├── tests/                     # acceptance tests + fixtures
+├── api/forecast.py            # Vercel serverless function (forecast as JSON)
+├── index.html                 # web dashboard (static, no third-party scripts)
+├── vercel.json                # Vercel config (function bundling + security headers)
+├── docs/                      # the specification, split by concern (01..08, SECRETS)
 ├── reference/folio-api.json   # vendored Folio OpenAPI v2 definition
 └── .github/workflows/         # ci.yml, secret-scan.yml, forecast.yml (scheduled)
 ```
+
+## Web dashboard
+
+A read-only dashboard (severity, projected curve, trough, drivers, inflows) deploys to
+**Vercel** — a Python serverless function (`api/forecast.py`) reusing the forecast engine,
+behind a `DASHBOARD_TOKEN` gate. See [`docs/08-dashboard.md`](docs/08-dashboard.md).
