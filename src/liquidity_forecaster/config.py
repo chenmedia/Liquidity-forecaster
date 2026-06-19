@@ -7,6 +7,7 @@ this object** — they are read from the environment at the moment of use
 
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, field
 from decimal import Decimal
@@ -18,6 +19,21 @@ def _env_decimal(name: str, default: str) -> Decimal:
 
 def _env_int(name: str, default: int) -> int:
     return int(os.environ.get(name, str(default)))
+
+
+def _env_bool(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _env_fx_rates(name: str) -> dict[str, Decimal]:
+    """Parse a JSON map of currency→NOK rate, e.g. {"EUR": "11.50"}."""
+    raw = os.environ.get(name)
+    if not raw:
+        return {}
+    return {cur: Decimal(str(rate)) for cur, rate in json.loads(raw).items()}
 
 
 @dataclass(frozen=True)
@@ -59,6 +75,17 @@ class Config:
     db_path: str = field(
         default_factory=lambda: os.environ.get("FORECAST_DB_PATH", "data/forecaster.db")
     )
+
+    # Phase 2
+    enable_baseline: bool = field(default_factory=lambda: _env_bool("FORECAST_BASELINE", True))
+    baseline_mad_k: Decimal = field(
+        default_factory=lambda: _env_decimal("FORECAST_BASELINE_MAD_K", "3.5")
+    )
+    expected_inflows_file: str | None = field(
+        default_factory=lambda: os.environ.get("EXPECTED_INFLOWS_FILE") or None
+    )
+    # Currency→NOK conversion rates for foreign payments, e.g. FX_RATES='{"EUR":"11.50"}'
+    fx_rates: dict[str, Decimal] = field(default_factory=lambda: _env_fx_rates("FX_RATES"))
 
     def amber_threshold(self) -> Decimal:
         """Balance at/below which we go AMBER (but not yet RED)."""

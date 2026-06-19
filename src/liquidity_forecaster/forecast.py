@@ -1,14 +1,19 @@
 """Projection engine.
 
-v1 is deterministic and conservative (docs/03-forecast.md): the projected
-operational balance is the current balance plus the signed deltas of scheduled
-payments, placed on their execution date. No recurring run-rate baseline in v1.
+The projected operational balance is the current balance plus, day by day:
+  - signed deltas of scheduled payments (placed on their execution date),
+  - expected client inflows (phase 2),
+  - a recurring run-rate baseline on days with no scheduled item (phase 2).
+
+Foreign-currency payments are converted to NOK using configured FX rates when
+available (otherwise counted at face value); either way they are flagged
+FX-variable because the rate is not fixed until execution.
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 from enum import IntEnum
@@ -36,15 +41,26 @@ class ScheduledItem:
     """A scheduled payment as a signed delta on the operational balance.
 
     ``delta`` is negative for an outflow. A negative payment amount (e.g. a
-    refund) therefore yields a positive delta.
+    refund) therefore yields a positive delta. For foreign payments ``amount``
+    and ``delta`` are in NOK after conversion; ``currency`` keeps the original.
     """
 
     execution_date: date
     creditor: str
-    amount: Decimal  # the raw payment amount (outflow magnitude)
-    delta: Decimal  # signed effect on balance
+    amount: Decimal  # NOK magnitude (converted if foreign)
+    delta: Decimal  # signed NOK effect on balance
     state: PaymentState
     currency: str = _BASE_CURRENCY
+    converted: bool = False
+
+
+@dataclass(frozen=True)
+class Inflow:
+    """An expected client payment not yet represented in Folio (phase 2)."""
+
+    date: date
+    amount: Decimal  # NOK, positive
+    source: str
 
 
 @dataclass(frozen=True)
@@ -65,6 +81,8 @@ class Forecast:
     has_retrying: bool
     low_confidence: bool
     fx_variable: bool = False
+    inflows: list[Inflow] = field(default_factory=list)
+    baseline_applied: bool = False
 
     @property
     def shortfall(self) -> Decimal:
@@ -89,8 +107,10 @@ def scheduled_items(
     start: date,
     end: date,
     include_drafts: bool,
+    fx_rates: dict[str, Decimal] | None = None,
 ) -> list[ScheduledItem]:
     """Filter payments to operational-account scheduled items within the window."""
+    rates = fx_rates or {}
     states = _DRAFTS if include_drafts else _COMMITTED
     items: list[ScheduledItem] = []
     for p in payments:
@@ -100,7 +120,12 @@ def scheduled_items(
             continue
         if not (start <= p.execution_date <= end):
             continue
+        currency = p.currency_amount.currency
         amount = p.currency_amount.amount
+        converted = False
+        if currency != _BASE_CURRENCY and currency in rates:
+            amount = (amount * rates[currency]).quantize(Decimal("0.01"))
+            converted = True
         items.append(
             ScheduledItem(
                 execution_date=p.execution_date,
@@ -108,7 +133,8 @@ def scheduled_items(
                 amount=amount,
                 delta=-amount,
                 state=p.state,
-                currency=p.currency_amount.currency,
+                currency=currency,
+                converted=converted,
             )
         )
     items.sort(key=lambda i: i.execution_date)
@@ -122,6 +148,8 @@ def build_forecast(
     *,
     today: date,
     include_drafts: bool = False,
+    baseline: dict[int, Decimal] | None = None,
+    expected_inflows: list[Inflow] | None = None,
 ) -> Forecast:
     """Project the operational balance over the horizon and classify severity."""
     operational = _select_operational(accounts, config.operational_account)
@@ -131,19 +159,31 @@ def build_forecast(
     start = today
     end = today + timedelta(days=config.horizon_days)
     items = scheduled_items(
-        payments, operational.account_number, start=start, end=end, include_drafts=include_drafts
+        payments,
+        operational.account_number,
+        start=start,
+        end=end,
+        include_drafts=include_drafts,
+        fx_rates=config.fx_rates,
     )
+    inflows = [i for i in (expected_inflows or []) if start <= i.date <= end]
 
-    # Aggregate deltas by date, then walk the horizon day by day.
+    # Aggregate scheduled deltas by date (payments + expected inflows).
     by_date: dict[date, Decimal] = {}
     for item in items:
         by_date[item.execution_date] = by_date.get(item.execution_date, Decimal(0)) + item.delta
+    for inflow in inflows:
+        by_date[inflow.date] = by_date.get(inflow.date, Decimal(0)) + inflow.amount
 
+    # Walk the horizon; on days with no scheduled item, apply the run-rate baseline.
     curve: list[tuple[date, Decimal]] = []
     balance = operational.balance
     day = start
     while day <= end:
-        balance += by_date.get(day, Decimal(0))
+        if day in by_date:
+            balance += by_date[day]
+        elif baseline and day > start:
+            balance += baseline.get(day.weekday(), Decimal(0))
         curve.append((day, balance))
         day += timedelta(days=1)
 
@@ -163,11 +203,13 @@ def build_forecast(
 
     fx_items = [i for i in items if i.currency != _BASE_CURRENCY]
     if fx_items:
+        unconverted = [i for i in fx_items if not i.converted]
         log.warning(
-            "%d scheduled payment(s) are not in %s; counted at face value — "
-            "the NOK debit is not fixed until execution (FX-variable)",
+            "%d non-NOK payment(s): %d converted via FX rates, %d at face value — "
+            "NOK debit not fixed until execution (FX-variable)",
             len(fx_items),
-            _BASE_CURRENCY,
+            len(fx_items) - len(unconverted),
+            len(unconverted),
         )
 
     return Forecast(
@@ -187,6 +229,8 @@ def build_forecast(
         has_retrying=has_retrying,
         low_confidence=low_confidence,
         fx_variable=bool(fx_items),
+        inflows=inflows,
+        baseline_applied=bool(baseline),
     )
 
 

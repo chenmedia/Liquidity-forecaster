@@ -11,9 +11,11 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from .alerting import SendDecision, decide_send
+from .baseline import compute_baseline
 from .config import Config
 from .folio_client import FolioClient
-from .forecast import Forecast, build_forecast
+from .forecast import Forecast, _select_operational, build_forecast
+from .inflows import load_expected_inflows
 from .models import Account
 from .notify import email_fallback, slack
 from .notify.message import render_text
@@ -71,12 +73,29 @@ def run(
         end = today + timedelta(days=config.horizon_days)
         payments = client.get_payments(today, end).payments
 
-    forecast = build_forecast(
-        accounts, payments, config, today=today, include_drafts=include_drafts
-    )
+    expected_inflows = load_expected_inflows(config.expected_inflows_file)
 
     store = Store(config.db_path)
     try:
+        baseline = None
+        if config.enable_baseline:
+            op = _select_operational(accounts, config.operational_account)
+            since = today - timedelta(days=config.lookback_days)
+            nets = store.daily_nets(op.account_number, since)
+            baseline = compute_baseline(nets, k=config.baseline_mad_k) or None
+            if baseline is None:
+                log.info("baseline skipped: insufficient history (run sync-history to populate)")
+
+        forecast = build_forecast(
+            accounts,
+            payments,
+            config,
+            today=today,
+            include_drafts=include_drafts,
+            baseline=baseline,
+            expected_inflows=expected_inflows,
+        )
+
         decision = decide_send(forecast, store.last_alert(), config)
         delivered_via: str | None = None
         if decision.should_send:

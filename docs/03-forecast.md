@@ -39,7 +39,13 @@ balance(d) = balance(today)
 
 ---
 
-## 4. Recurring baseline & double-count avoidance (phase 2)
+## 4. Recurring baseline & double-count avoidance
+
+> **Implemented** in `baseline.py` (`compute_baseline`) and applied in `forecast.py`.
+> Enabled by default (`FORECAST_BASELINE=on`); needs daily-balance history, which the
+> scheduled workflow refreshes via `sync-history` before each run. Expected client
+> inflows (`inflows.py`, `EXPECTED_INFLOWS_FILE`) and FX conversion of foreign payments
+> (`FX_RATES`) are also implemented and layered into the projection.
 
 The baseline must capture *routine* run-rate (rent, payroll, subscriptions, steady card
 spend) but **must not** re-add the large, irregular festival/wedding flows that the

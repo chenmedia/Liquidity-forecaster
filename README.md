@@ -39,8 +39,9 @@ safely) and the vendored Folio OpenAPI definition in
 - **Read-only** against money movement — it never initiates or modifies payments.
 - **Poll-based** — the Folio API has no webhooks; the forecaster runs on a schedule.
 - **Slack-first alerting** to `#finance`, with an **email fallback** if Slack delivery fails.
-- **Conservative by default** — v1 projects from current balance + scheduled items only
-  (recurring run-rate baseline is phase 2).
+- **Layered projection** — current balance + scheduled payments, plus (optional) a
+  recurring run-rate baseline from history, expected client inflows, and FX-converted
+  foreign payments.
 
 ## Running it
 

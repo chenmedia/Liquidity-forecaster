@@ -61,12 +61,18 @@ jobs:
           ALERT_EMAIL_TO: ${{ vars.ALERT_EMAIL_TO }}
           FORECAST_FLOOR: ${{ vars.FORECAST_FLOOR }}
           FORECAST_HORIZON_DAYS: ${{ vars.FORECAST_HORIZON_DAYS }}
+          FORECAST_BASELINE: ${{ vars.FORECAST_BASELINE }}
+          FOLIO_OPERATIONAL_ACCOUNT: ${{ vars.FOLIO_OPERATIONAL_ACCOUNT }}
+          EXPECTED_INFLOWS_FILE: ${{ vars.EXPECTED_INFLOWS_FILE }}
+          FX_RATES: ${{ vars.FX_RATES }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           if [ -z "$FOLIO_API_KEY" ]; then
             echo "FOLIO_API_KEY is not configured — skipping. Set repo secrets to enable (docs/SECRETS.md)."
             exit 0
           fi
+          # Refresh cached daily balances (incremental) so the run-rate baseline has data.
+          python -m liquidity_forecaster sync-history || echo "sync-history failed; continuing without fresh baseline data"
           if [ "$DRY_RUN" = "true" ]; then
             python -m liquidity_forecaster run --dry-run
           else
