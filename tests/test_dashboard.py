@@ -1,12 +1,10 @@
-"""Tests for the dashboard backend: serialization and the internal-secret gate."""
+"""Tests for the dashboard data path: serialization and snapshot publishing."""
 
 from __future__ import annotations
 
 import json
 
-import pytest
-
-from liquidity_forecaster import web
+from liquidity_forecaster import publish
 from liquidity_forecaster.config import Config
 from liquidity_forecaster.forecast import build_forecast
 from liquidity_forecaster.models import AccountsResponse, PaymentsResponse
@@ -29,7 +27,6 @@ def test_forecast_to_dict_shape_and_values() -> None:
     assert d["firstBreachDate"] == "2026-06-25"
     assert {dr["creditor"] for dr in d["drivers"]} == {"Sound & Light AS", "Payroll"}
     assert len(d["curve"]) == Config().horizon_days + 1
-    # Money stays as strings (never float).
     assert all(isinstance(p["balance"], str) for p in d["curve"])
 
 
@@ -37,20 +34,41 @@ def test_forecast_to_dict_is_json_serializable() -> None:
     json.dumps(forecast_to_dict(_forecast()))  # must not raise
 
 
-def test_internal_secret_not_configured(monkeypatch) -> None:
-    monkeypatch.delenv("INTERNAL_API_SECRET", raising=False)
-    with pytest.raises(web.NotConfigured):
-        web.check_internal_secret("anything")
+def test_publish_skips_when_unconfigured(monkeypatch) -> None:
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    assert publish.publish_snapshot({"a": 1}) is False
 
 
-def test_internal_secret_rejects_wrong(monkeypatch) -> None:
-    monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
-    with pytest.raises(web.InternalAuthError):
-        web.check_internal_secret("nope")
-    with pytest.raises(web.InternalAuthError):
-        web.check_internal_secret(None)
+def test_publish_writes_via_connection(monkeypatch) -> None:
+    """With a configured URL, it creates the table, inserts, prunes, and commits."""
+    calls: list[str] = []
 
+    class FakeCursor:
+        def __enter__(self):
+            return self
 
-def test_internal_secret_accepts_correct(monkeypatch) -> None:
-    monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
-    web.check_internal_secret("s3cret")  # must not raise
+        def __exit__(self, *exc):
+            return False
+
+        def execute(self, sql, params=None):
+            calls.append(sql.strip().split()[0].upper())  # first SQL keyword
+
+    class FakeConn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            calls.append("COMMIT")
+
+    import psycopg
+
+    monkeypatch.setattr(psycopg, "connect", lambda url: FakeConn())
+    ok = publish.publish_snapshot({"x": 1}, database_url="postgres://example/db")
+    assert ok is True
+    assert calls == ["CREATE", "INSERT", "DELETE", "COMMIT"]

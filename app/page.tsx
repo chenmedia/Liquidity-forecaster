@@ -34,7 +34,8 @@ export default function Dashboard() {
     fetch("/api/forecast", { cache: "no-store" })
       .then(async (res) => {
         if (res.status === 403) throw new Error("Your account is not permitted to view this dashboard.");
-        if (res.status === 503) throw new Error("Dashboard not configured (missing server settings).");
+        if (res.status === 404)
+          throw new Error("No forecast has been published yet — the scheduled run will publish one (or run `publish`).");
         if (!res.ok) throw new Error(`Forecast unavailable (HTTP ${res.status}).`);
         return res.json();
       })

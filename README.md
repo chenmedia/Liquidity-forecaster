@@ -102,10 +102,9 @@ secret scanning** as a pre-commit hook and a CI backstop (see
 │   └── notify/                # slack.py, email_fallback.py, message.py
 ├── tests/                     # acceptance tests + fixtures
 ├── app/                       # Next.js dashboard (Clerk auth, App Router)
-├── api/compute.py             # internal Python function (forecast JSON)
-├── lib/access.ts              # @chenmedia.no email allowlist (+ test)
+├── lib/access.ts  lib/db.ts   # email allowlist + Neon snapshot read
 ├── middleware.ts              # Clerk route protection
-├── next.config.mjs vercel.json package.json   # web app config
+├── next.config.mjs package.json   # web app config
 ├── docs/                      # the specification, split by concern (01..08, SECRETS)
 ├── reference/folio-api.json   # vendored Folio OpenAPI v2 definition
 └── .github/workflows/         # ci.yml, secret-scan.yml, forecast.yml (scheduled)
@@ -114,6 +113,7 @@ secret scanning** as a pre-commit hook and a CI backstop (see
 ## Web dashboard
 
 A read-only **Next.js** dashboard (severity, projected curve, trough, drivers, inflows)
-on **Vercel**, with **Clerk** sign-in restricted to **@chenmedia.no**. It reuses the
-Python forecast engine as an internal compute function — no duplicated logic. See
+on **Vercel**, with **Clerk** sign-in restricted to **@chenmedia.no**. The scheduled job
+publishes the forecast to **Neon (Postgres)** and the dashboard reads it — single runtime,
+no Python on Vercel. See
 [`docs/08-dashboard.md`](docs/08-dashboard.md).

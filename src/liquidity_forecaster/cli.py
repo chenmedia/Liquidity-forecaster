@@ -3,6 +3,7 @@
 Subcommands:
   accounts       Fetch and print current balances by bucket (read-only sanity check).
   sync-history   Incrementally backfill cached daily balances.
+  publish        Compute and publish the dashboard snapshot to Postgres (no alert).
   send-test      Post a sample alert to verify the Slack channel.
   run            Project operational cash, evaluate the floor, and (optionally) alert.
 """
@@ -21,7 +22,7 @@ from .forecast import Forecast, Severity
 from .money import format_nok
 from .notify import slack
 from .notify.message import render_text
-from .pipeline import fetch_accounts, run, sync_history
+from .pipeline import fetch_accounts, publish_only, run, sync_history
 
 
 def _cmd_accounts(config: Config) -> int:
@@ -75,6 +76,16 @@ def _sample_forecast(config: Config) -> Forecast:
     )
 
 
+def _cmd_publish(config: Config) -> int:
+    published = publish_only(config)
+    print(
+        "Published forecast snapshot to the dashboard store."
+        if published
+        else "DATABASE_URL not set — nothing published."
+    )
+    return 0
+
+
 def _cmd_send_test(config: Config) -> int:
     forecast = _sample_forecast(config)
     try:
@@ -95,6 +106,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     sub.add_parser("accounts", help="print current balances by bucket")
     sub.add_parser("sync-history", help="backfill cached daily balances")
+    sub.add_parser("publish", help="compute and publish the dashboard snapshot (no alert)")
     sub.add_parser("send-test", help="post a sample alert to verify the Slack channel")
 
     run_p = sub.add_parser("run", help="project cash and evaluate the floor")
@@ -121,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_accounts(config)
         if args.command == "sync-history":
             return _cmd_sync_history(config)
+        if args.command == "publish":
+            return _cmd_publish(config)
         if args.command == "send-test":
             return _cmd_send_test(config)
         if args.command == "run":

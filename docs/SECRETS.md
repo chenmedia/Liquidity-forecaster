@@ -56,6 +56,7 @@ To enable it, add these under **Settings → Secrets and variables → Actions**
 | `FOLIO_API_KEY` | Folio read access (required to enable the run) |
 | `SLACK_WEBHOOK_URL` | Post alerts to `#finance` |
 | `SMTP_HOST` / `SMTP_PORT` / `SMTP_USERNAME` / `SMTP_PASSWORD` / `ALERT_EMAIL_FROM` | Email fallback |
+| `DATABASE_URL` | Neon Postgres — the run publishes the dashboard snapshot here (same value as the Vercel `DATABASE_URL`) |
 
 | As a **variable** (non-secret) | Purpose |
 |---|---|

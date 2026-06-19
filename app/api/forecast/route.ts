@@ -1,14 +1,14 @@
 import { NextResponse } from "next/server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { isAllowedEmail } from "@/lib/access";
+import { getLatestForecast } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// Authenticated proxy: Clerk gates the user + email domain, then we call the
-// internal Python compute function (gated by INTERNAL_API_SECRET). The browser
-// never talks to the Python function directly.
-export async function GET(req: Request) {
+// Clerk gates the user + @chenmedia.no email; then we return the latest forecast
+// snapshot from Neon (published by the scheduled job). No compute happens here.
+export async function GET() {
   const { userId } = await auth();
   if (!userId) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -21,25 +21,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "forbidden" }, { status: 403 });
   }
 
-  const secret = process.env.INTERNAL_API_SECRET;
-  if (!secret) {
-    return NextResponse.json({ error: "dashboard not configured" }, { status: 503 });
-  }
-
-  const origin = new URL(req.url).origin;
-  let res: Response;
+  let payload: unknown | null;
   try {
-    res = await fetch(`${origin}/api/compute`, {
-      headers: { "X-Internal-Secret": secret },
-      cache: "no-store",
-    });
+    payload = await getLatestForecast();
   } catch {
-    return NextResponse.json({ error: "forecast unavailable" }, { status: 502 });
+    return NextResponse.json({ error: "forecast store unavailable" }, { status: 502 });
   }
-  if (!res.ok) {
-    return NextResponse.json({ error: "forecast unavailable" }, { status: 502 });
+  if (payload == null) {
+    return NextResponse.json({ error: "no forecast published yet" }, { status: 404 });
   }
 
-  const data = await res.json();
-  return NextResponse.json(data, { headers: { "Cache-Control": "no-store" } });
+  return NextResponse.json(payload, { headers: { "Cache-Control": "no-store" } });
 }
