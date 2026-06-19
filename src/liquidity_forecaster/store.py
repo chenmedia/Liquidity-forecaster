@@ -83,6 +83,24 @@ class Store:
         )
         self._conn.commit()
 
+    def daily_nets(self, account_number: str, since: date) -> list[tuple[date, Decimal]]:
+        """Per-day net flow (outgoing − incoming) since ``since``, for the baseline.
+
+        Days where the account wasn't open (missing balances) are skipped.
+        """
+        cur = self._conn.execute(
+            "SELECT day, incoming_balance, outgoing_balance FROM daily_balance "
+            "WHERE account_number = ? AND day >= ? ORDER BY day",
+            (account_number, since.isoformat()),
+        )
+        nets: list[tuple[date, Decimal]] = []
+        for row in cur.fetchall():
+            inc, out = row["incoming_balance"], row["outgoing_balance"]
+            if inc is None or out is None:
+                continue
+            nets.append((date.fromisoformat(row["day"]), Decimal(out) - Decimal(inc)))
+        return nets
+
     # --- alert state ----------------------------------------------------
     def last_alert(self) -> AlertRecord | None:
         cur = self._conn.execute("SELECT * FROM alert_state ORDER BY id DESC LIMIT 1")

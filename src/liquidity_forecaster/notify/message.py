@@ -49,6 +49,12 @@ def render_text(f: Forecast) -> str:
     drivers = _drivers_lines(f)
     if drivers:
         lines += ["", "Drivers:", *drivers]
+    if f.inflows:
+        lines += [
+            "",
+            "Expected inflows:",
+            *[f"• {i.date.isoformat()} · {i.source} · {format_nok(i.amount)}" for i in f.inflows],
+        ]
     if f.severity is not Severity.GREEN:
         clears = "yes" if f.draw_on_savings_clears else "no"
         lines += [
@@ -61,6 +67,8 @@ def render_text(f: Forecast) -> str:
         lines += ["", "Note: forecast confidence is low (pending/unsettled transactions)."]
     if f.fx_variable:
         lines += ["", "Note: includes non-NOK payment(s) — FX-variable until execution."]
+    if f.baseline_applied:
+        lines += ["", "Note: projection includes a recurring run-rate baseline from history."]
     return "\n".join(lines)
 
 
@@ -99,6 +107,8 @@ def render_blocks(f: Forecast) -> list[dict[str, object]]:
             }
         )
     footer = "Forecast horizon to " + f.end_date.isoformat()
+    if f.baseline_applied:
+        footer += " · 📈 run-rate baseline"
     if f.low_confidence:
         footer += " · ⚠️ low confidence (unsettled transactions)"
     if f.fx_variable:

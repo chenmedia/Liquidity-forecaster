@@ -62,8 +62,16 @@ To enable it, add these under **Settings → Secrets and variables → Actions**
 | `SLACK_CHANNEL` (default `#finance`), `ALERT_EMAIL_TO` | Routing |
 | `FORECAST_FLOOR`, `FORECAST_HORIZON_DAYS` | Tune thresholds without code changes |
 | `FOLIO_OPERATIONAL_ACCOUNT` | Which Operational account to forecast (if you run several) |
+| `FORECAST_BASELINE` (`on`/`off`, default on) | Include the recurring run-rate baseline |
+| `FX_RATES` | Currency→NOK rates JSON, e.g. `{"EUR":"11.50"}` |
+| `EXPECTED_INFLOWS_FILE` | Path to a committed JSON file of expected client inflows |
 
 Manual runs (**Actions → Liquidity forecast → Run workflow**) default to **dry-run**.
+
+> **Privacy note:** an expected-inflows file lists client names and amounts. If you point
+> `EXPECTED_INFLOWS_FILE` at a committed file so the Actions run can read it, that data
+> lives in the repo — keep the repo private and treat it as business-sensitive. The
+> format is in [`expected_inflows.example.json`](../expected_inflows.example.json).
 
 ---
 
