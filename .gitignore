@@ -42,6 +42,9 @@ venv/
 node_modules/
 dist/
 build/
+.next/
+next-env.d.ts
+.eslintcache
 *.tsbuildinfo
 npm-debug.log*
 yarn-error.log*

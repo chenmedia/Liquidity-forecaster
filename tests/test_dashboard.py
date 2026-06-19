@@ -1,4 +1,4 @@
-"""Tests for the dashboard backend: serialization and the auth gate."""
+"""Tests for the dashboard backend: serialization and the internal-secret gate."""
 
 from __future__ import annotations
 
@@ -37,20 +37,20 @@ def test_forecast_to_dict_is_json_serializable() -> None:
     json.dumps(forecast_to_dict(_forecast()))  # must not raise
 
 
-def test_check_token_not_configured(monkeypatch) -> None:
-    monkeypatch.delenv("DASHBOARD_TOKEN", raising=False)
+def test_internal_secret_not_configured(monkeypatch) -> None:
+    monkeypatch.delenv("INTERNAL_API_SECRET", raising=False)
     with pytest.raises(web.NotConfigured):
-        web.check_token("anything")
+        web.check_internal_secret("anything")
 
 
-def test_check_token_rejects_wrong(monkeypatch) -> None:
-    monkeypatch.setenv("DASHBOARD_TOKEN", "s3cret")
-    with pytest.raises(web.Unauthorized):
-        web.check_token("nope")
-    with pytest.raises(web.Unauthorized):
-        web.check_token(None)
+def test_internal_secret_rejects_wrong(monkeypatch) -> None:
+    monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
+    with pytest.raises(web.InternalAuthError):
+        web.check_internal_secret("nope")
+    with pytest.raises(web.InternalAuthError):
+        web.check_internal_secret(None)
 
 
-def test_check_token_accepts_correct(monkeypatch) -> None:
-    monkeypatch.setenv("DASHBOARD_TOKEN", "s3cret")
-    web.check_token("s3cret")  # must not raise
+def test_internal_secret_accepts_correct(monkeypatch) -> None:
+    monkeypatch.setenv("INTERNAL_API_SECRET", "s3cret")
+    web.check_internal_secret("s3cret")  # must not raise

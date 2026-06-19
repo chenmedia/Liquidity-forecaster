@@ -101,9 +101,11 @@ secret scanning** as a pre-commit hook and a CI backstop (see
 │   ├── forecast.py  alerting.py  store.py  pipeline.py  cli.py
 │   └── notify/                # slack.py, email_fallback.py, message.py
 ├── tests/                     # acceptance tests + fixtures
-├── api/forecast.py            # Vercel serverless function (forecast as JSON)
-├── index.html                 # web dashboard (static, no third-party scripts)
-├── vercel.json                # Vercel config (function bundling + security headers)
+├── app/                       # Next.js dashboard (Clerk auth, App Router)
+├── api/compute.py             # internal Python function (forecast JSON)
+├── lib/access.ts              # @chenmedia.no email allowlist (+ test)
+├── middleware.ts              # Clerk route protection
+├── next.config.mjs vercel.json package.json   # web app config
 ├── docs/                      # the specification, split by concern (01..08, SECRETS)
 ├── reference/folio-api.json   # vendored Folio OpenAPI v2 definition
 └── .github/workflows/         # ci.yml, secret-scan.yml, forecast.yml (scheduled)
@@ -111,6 +113,7 @@ secret scanning** as a pre-commit hook and a CI backstop (see
 
 ## Web dashboard
 
-A read-only dashboard (severity, projected curve, trough, drivers, inflows) deploys to
-**Vercel** — a Python serverless function (`api/forecast.py`) reusing the forecast engine,
-behind a `DASHBOARD_TOKEN` gate. See [`docs/08-dashboard.md`](docs/08-dashboard.md).
+A read-only **Next.js** dashboard (severity, projected curve, trough, drivers, inflows)
+on **Vercel**, with **Clerk** sign-in restricted to **@chenmedia.no**. It reuses the
+Python forecast engine as an internal compute function — no duplicated logic. See
+[`docs/08-dashboard.md`](docs/08-dashboard.md).

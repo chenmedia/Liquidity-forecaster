@@ -1,7 +1,9 @@
-"""Vercel Python serverless function: returns the current forecast as JSON.
+"""Internal Vercel Python function: returns the forecast as JSON.
 
-GET /api/forecast — requires a ``DASHBOARD_TOKEN`` passed as the
-``X-Dashboard-Token`` header or a ``?token=`` query param. Fails closed.
+GET /api/compute — **internal only**. Requires the ``X-Internal-Secret`` header to
+match ``INTERNAL_API_SECRET``. The Next.js route handler (which does the Clerk user
+auth + @chenmedia.no allowlist) is the only intended caller; the browser never hits
+this directly. Fails closed if the secret isn't configured.
 """
 
 from __future__ import annotations
@@ -11,7 +13,6 @@ import logging
 import os
 import sys
 from http.server import BaseHTTPRequestHandler
-from urllib.parse import parse_qs, urlparse
 
 # The package lives under src/; bundled into the function via vercel.json includeFiles.
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
@@ -22,13 +23,12 @@ log = logging.getLogger(__name__)
 
 
 class handler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:  # noqa: N802 (Vercel/BaseHTTPRequestHandler API)
-        token = self.headers.get("X-Dashboard-Token") or _query_token(self.path)
+    def do_GET(self) -> None:  # noqa: N802 (BaseHTTPRequestHandler API)
         try:
-            web.check_token(token)
+            web.check_internal_secret(self.headers.get("X-Internal-Secret"))
         except web.NotConfigured:
-            return self._json(503, {"error": "dashboard not configured"})
-        except web.Unauthorized:
+            return self._json(503, {"error": "compute not configured"})
+        except web.InternalAuthError:
             return self._json(401, {"error": "unauthorized"})
 
         try:
@@ -49,8 +49,3 @@ class handler(BaseHTTPRequestHandler):
 
     def log_message(self, *args: object) -> None:  # silence default stderr logging
         pass
-
-
-def _query_token(path: str) -> str | None:
-    values = parse_qs(urlparse(path).query).get("token")
-    return values[0] if values else None

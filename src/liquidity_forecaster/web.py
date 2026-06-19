@@ -1,8 +1,8 @@
-"""Backend helpers for the web dashboard.
+"""Backend helpers for the dashboard's internal compute function.
 
-The dashboard exposes live financial data, so the API is gated by a shared secret
-(``DASHBOARD_TOKEN``) and fails **closed** when it isn't configured. This module
-keeps the auth + payload logic here (testable) so the serverless handler stays thin.
+The Python function is **internal**: only the Next.js server (which performs the
+Clerk user auth + email-domain allowlist) may call it, authenticated with a shared
+``INTERNAL_API_SECRET``. It fails **closed** when the secret isn't configured.
 """
 
 from __future__ import annotations
@@ -16,21 +16,21 @@ from .serialize import forecast_to_dict
 from .store import Store
 
 
-class Unauthorized(Exception):
-    """Wrong or missing dashboard token."""
+class InternalAuthError(Exception):
+    """Wrong or missing internal secret."""
 
 
 class NotConfigured(Exception):
-    """DASHBOARD_TOKEN is not set — refuse to serve data (fail closed)."""
+    """INTERNAL_API_SECRET is not set — refuse to serve data (fail closed)."""
 
 
-def check_token(provided: str | None) -> None:
-    """Validate the caller's token with a constant-time comparison."""
-    expected = os.environ.get("DASHBOARD_TOKEN")
+def check_internal_secret(provided: str | None) -> None:
+    """Validate the caller's internal secret with a constant-time comparison."""
+    expected = os.environ.get("INTERNAL_API_SECRET")
     if not expected:
-        raise NotConfigured("DASHBOARD_TOKEN is not set")
+        raise NotConfigured("INTERNAL_API_SECRET is not set")
     if not provided or not hmac.compare_digest(provided, expected):
-        raise Unauthorized("invalid dashboard token")
+        raise InternalAuthError("invalid internal secret")
 
 
 def build_payload() -> dict[str, object]:
