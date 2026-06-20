@@ -14,16 +14,19 @@ from decimal import Decimal
 
 
 def _env_decimal(name: str, default: str) -> Decimal:
-    return Decimal(os.environ.get(name, default))
+    # Treat an unset OR empty value as "use the default": GitHub Actions passes
+    # `${{ vars.X }}` as an empty string when the variable is unset, and
+    # os.environ.get(name, default) would return that empty string.
+    return Decimal(os.environ.get(name) or default)
 
 
 def _env_int(name: str, default: int) -> int:
-    return int(os.environ.get(name, str(default)))
+    return int(os.environ.get(name) or str(default))
 
 
 def _env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
-    if raw is None:
+    if not raw:  # unset or empty → default
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
