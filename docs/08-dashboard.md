@@ -1,61 +1,80 @@
-# 08 · Web dashboard (Vercel)
+# 08 · Web dashboard (Next.js + Clerk + Neon on Vercel)
 
 **Part of the [Liquidity Forecaster spec](../README.md).**
 
-A read-only web view of the current forecast — severity, the projected balance curve,
-trough, drivers, and expected inflows — served on Vercel. It reuses the Python forecast
-engine via a serverless function; there is no separate copy of the logic.
+A per-user authenticated dashboard for the forecast — severity, the projected balance
+curve, trough, drivers, and expected inflows. Sign-in is via **Clerk**, restricted to
+**@chenmedia.no** emails. The dashboard reads the latest forecast from **Neon (Postgres)**,
+published by the scheduled job — so Vercel runs a **single runtime (Next.js only)**.
 
-## Pieces
+**Live URL:** <https://liquidity-forecaster-mauve.vercel.app> (the Vercel project's
+production domain — we keep using this `.vercel.app` subdomain; no custom domain). Add
+this origin to the **Clerk Dashboard → allowed origins / redirect URLs** so sign-in works
+there.
 
-| File | Role |
-|------|------|
-| `index.html` | Static dashboard (vanilla JS, inline SVG chart — no third-party scripts) |
-| `api/forecast.py` | Vercel Python serverless function → returns the forecast as JSON |
-| `src/liquidity_forecaster/web.py` | Auth gate + payload builder (testable) |
-| `src/liquidity_forecaster/serialize.py` | `Forecast` → JSON-friendly dict |
-| `vercel.json` | Function `includeFiles` (bundles `src/`) + security headers |
-| `requirements.txt` | Runtime deps for the function (httpx, pydantic) |
+## Architecture
+
+```
+Scheduled GitHub Action (Python)               Vercel (Next.js only)
+  forecast run ──▶ publish_snapshot ──▶  Neon Postgres  ◀── app/api/forecast/route.ts
+  (Slack/email alert too)                (forecast_snapshot)     · auth() (Clerk)
+                                                                 · @chenmedia.no check
+                                                                 · read latest snapshot
+                                                                        ▲
+                                                                Browser (Clerk session)
+```
+
+- **Python** computes the forecast (already the authoritative path) and writes a JSON
+  snapshot to Neon (`publish.py`). The dashboard never computes — it **reads** the snapshot.
+- **No Python on Vercel**: the previous serverless Python function is gone, which removes
+  the Next.js/Python build conflict and gives real persistence.
 
 ## Security
 
-The dashboard exposes **live financial data**, so the API is gated by a shared secret:
-
-- `GET /api/forecast` requires `DASHBOARD_TOKEN` via the `X-Dashboard-Token` header
-  (or `?token=`). It **fails closed** — returns `503` if `DASHBOARD_TOKEN` is unset,
-  `401` on a wrong/missing token. Token comparison is constant-time.
-- The page prompts for the token and keeps it in `localStorage`; it's sent only to
-  `/api/forecast` over HTTPS.
-- Responses are `no-store`; a strict-ish CSP and `X-Frame-Options: DENY` are set in
-  `vercel.json`. The page is `noindex`.
-- This is a single-secret gate suitable for a small internal tool. For stronger control
-  use Vercel's built-in **Password Protection / SSO** (Pro) in front of it.
-
-> The token is **not** a substitute for `FOLIO_API_KEY` — it only guards the dashboard.
+- **Auth:** Clerk. `middleware.ts` requires a session for everything except sign-in/up.
+- **Whitelist (two layers):** Clerk Dashboard → **Restrictions** allow only `chenmedia.no`
+  (primary), and `app/api/forecast/route.ts` re-checks the email domain (`lib/access.ts`,
+  unit-tested) → `403` otherwise.
+- Security headers + Clerk-compatible CSP in `next.config.mjs`; API responses `no-store`;
+  app is `noindex`. Read-only — the dashboard never triggers payments, alerts, or compute.
 
 ## Deploy
 
-1. **Import the repo** into Vercel (Framework preset: **Other**). It auto-detects the
-   static site + the `api/*.py` Python function.
-2. **Set Environment Variables** (Project → Settings → Environment Variables):
-   - `FOLIO_API_KEY` — Folio read access (same value as the GitHub Actions secret).
-   - `DASHBOARD_TOKEN` — a strong random string you'll type into the dashboard.
-   - `FORECAST_DB_PATH=/tmp/forecaster.db` — serverless filesystems are read-only except
-     `/tmp`. (History/baseline won't persist between invocations on Vercel, so the
-     dashboard shows the scheduled-items projection; the baseline stays a feature of the
-     scheduled GitHub Actions run.)
-   - Optional: `FORECAST_FLOOR`, `FOLIO_OPERATIONAL_ACCOUNT`, `FX_RATES`,
-     `EXPECTED_INFLOWS_FILE`, `FORECAST_BASELINE=off`.
-3. **Deploy**, open the URL, enter the `DASHBOARD_TOKEN`.
+1. **Clerk app** (clerk.com) → Restrictions allow only `chenmedia.no`. Copy the keys.
+2. **Neon database** (via the Vercel integration or neon.tech) → it provides a
+   `DATABASE_URL`.
+3. **Vercel** (framework auto-detected as Next.js) env vars:
+   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` — from Clerk.
+   - `DATABASE_URL` — from Neon.
+   - Optional: `DASHBOARD_ALLOWED_EMAIL_DOMAIN` (default `chenmedia.no`).
+4. **GitHub Actions** secret `DATABASE_URL` (same Neon string) so the scheduled run can
+   publish. Plus the existing `FOLIO_API_KEY` etc.
+5. **Seed the first snapshot:** trigger the `Liquidity forecast` workflow once (or run
+   `python -m liquidity_forecaster publish` with `DATABASE_URL` + `FOLIO_API_KEY` set).
+6. Open the Vercel URL, sign in with a @chenmedia.no email.
+
+## How it refreshes
+
+The dashboard shows the **last published snapshot**. It refreshes each scheduled run
+(daily) and whenever you run `publish` / dispatch the workflow. The `forecast_snapshot`
+table keeps the most recent ~30 rows (dashboard reads the latest).
+
+## Develop locally
+
+```bash
+npm install
+npm run dev        # Next.js (needs Clerk envs + DATABASE_URL)
+npm test           # vitest (email allowlist)
+npm run typecheck  # tsc --noEmit
+```
+
+Python engine + publisher: `pytest -q`, `ruff`, `mypy` (see [CONTRIBUTING](../CONTRIBUTING.md)).
 
 ## Notes & limits
-
-- **No persistent history on Vercel** → the run-rate baseline is effectively off there.
-  The authoritative alerting path remains the scheduled GitHub Actions run (which caches
-  state and history). The dashboard is a *view*, not the alerting engine.
-- The function calls Folio live on each request; keep it behind the token and consider a
-  short CDN cache only if needed (currently `no-store`).
-- Read-only: the dashboard never triggers payments or alerts.
+- The dashboard is a **view** of the latest scheduled forecast, not an on-demand compute.
+  The authoritative alerting path is unchanged.
+- For a production Clerk instance on a custom domain, add that Clerk Frontend API host to
+  the CSP in `next.config.mjs` (the dev CSP allows `*.clerk.accounts.dev`).
 
 ---
 

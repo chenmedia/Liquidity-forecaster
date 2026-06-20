@@ -23,13 +23,36 @@ jobs:
           pip install -e ".[dev]"
 
       - name: Lint (ruff)
-        run: ruff check src tests api
+        run: ruff check src tests
 
       - name: Format check (ruff)
-        run: ruff format --check src tests api
+        run: ruff format --check src tests
 
       - name: Type check (mypy)
         run: mypy src
 
       - name: Tests (pytest)
         run: pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install
+        run: npm ci
+
+      - name: Type check (tsc)
+        run: npx tsc --noEmit
+
+      - name: Lint (next)
+        run: npx next lint
+
+      - name: Unit tests (vitest)
+        run: npx vitest run
+

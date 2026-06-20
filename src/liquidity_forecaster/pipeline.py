@@ -19,6 +19,8 @@ from .inflows import load_expected_inflows
 from .models import Account
 from .notify import email_fallback, slack
 from .notify.message import render_text
+from .publish import publish_snapshot
+from .serialize import forecast_to_dict
 from .store import Store
 
 log = logging.getLogger(__name__)
@@ -118,7 +120,25 @@ def run(
     finally:
         store.close()
 
+    # Publish the snapshot for the dashboard (best-effort; never breaks the run).
+    try:
+        publish_snapshot(forecast_to_dict(forecast))
+    except Exception:  # noqa: BLE001
+        log.exception("failed to publish dashboard snapshot")
+
     return RunResult(forecast=forecast, decision=decision, delivered_via=delivered_via)
+
+
+def publish_only(
+    config: Config, *, today: date | None = None, include_drafts: bool = False
+) -> bool:
+    """Compute the forecast and publish the dashboard snapshot, without alerting."""
+    store = Store(config.db_path)
+    try:
+        forecast = compute_forecast(config, store, today=today, include_drafts=include_drafts)
+    finally:
+        store.close()
+    return publish_snapshot(forecast_to_dict(forecast))
 
 
 def _deliver(forecast: Forecast, config: Config, *, dry_run: bool) -> str:
