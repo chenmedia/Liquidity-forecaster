@@ -15,6 +15,11 @@ on:
         description: "Print the alert instead of sending it"
         type: boolean
         default: true
+  # Re-run when this workflow file changes on main: registers the workflow and seeds
+  # the dashboard snapshot. push runs are forced to dry-run (no Slack alert).
+  push:
+    branches: [main]
+    paths: [".github/workflows/forecast.yml"]
 
 permissions:
   contents: read
@@ -68,6 +73,7 @@ jobs:
           FX_RATES: ${{ vars.FX_RATES }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           DRY_RUN: ${{ inputs.dry_run }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           if [ -z "$FOLIO_API_KEY" ]; then
             echo "FOLIO_API_KEY is not configured — skipping. Set repo secrets to enable (docs/SECRETS.md)."
@@ -75,7 +81,10 @@ jobs:
           fi
           # Refresh cached daily balances (incremental) so the run-rate baseline has data.
           python -m liquidity_forecaster sync-history || echo "sync-history failed; continuing without fresh baseline data"
-          if [ "$DRY_RUN" = "true" ]; then
+          # push events (workflow-file changes) seed the snapshot without sending an alert.
+          MODE="$DRY_RUN"
+          if [ "$EVENT_NAME" = "push" ]; then MODE="true"; fi
+          if [ "$MODE" = "true" ]; then
             python -m liquidity_forecaster run --dry-run
           else
             python -m liquidity_forecaster run
