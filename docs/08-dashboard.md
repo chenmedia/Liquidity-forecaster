@@ -7,6 +7,11 @@ curve, trough, drivers, and expected inflows. Sign-in is via **Clerk**, restrict
 **@chenmedia.no** emails. The dashboard reads the latest forecast from **Neon (Postgres)**,
 published by the scheduled job — so Vercel runs a **single runtime (Next.js only)**.
 
+**Live URL:** <https://liquidity-forecaster-mauve.vercel.app> (the Vercel project's
+production domain — we keep using this `.vercel.app` subdomain; no custom domain). Add
+this origin to the **Clerk Dashboard → allowed origins / redirect URLs** so sign-in works
+there.
+
 ## Architecture
 
 ```

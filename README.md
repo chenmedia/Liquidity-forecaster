@@ -115,5 +115,7 @@ secret scanning** as a pre-commit hook and a CI backstop (see
 A read-only **Next.js** dashboard (severity, projected curve, trough, drivers, inflows)
 on **Vercel**, with **Clerk** sign-in restricted to **@chenmedia.no**. The scheduled job
 publishes the forecast to **Neon (Postgres)** and the dashboard reads it — single runtime,
-no Python on Vercel. See
+no Python on Vercel.
+
+**Live at <https://liquidity-forecaster-mauve.vercel.app>.** See
 [`docs/08-dashboard.md`](docs/08-dashboard.md).
