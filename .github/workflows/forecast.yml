@@ -1,9 +1,10 @@
 name: Liquidity forecast
 
-# Runs the forecaster on a schedule and alerts #finance (with email fallback).
-# Safe to merge before secrets exist: if FOLIO_API_KEY is not configured the run
+# Runs the forecaster on a schedule and alerts #finance (with email fallback), and
+# publishes the latest forecast snapshot to Neon for the dashboard.
+# Safe to run before secrets exist: if FOLIO_API_KEY is not configured the run
 # skips cleanly instead of failing. Provide repo Actions secrets to enable
-# (see docs/SECRETS.md): FOLIO_API_KEY, SLACK_WEBHOOK_URL, and optionally SMTP_*.
+# (see docs/SECRETS.md): FOLIO_API_KEY, SLACK_WEBHOOK_URL, DATABASE_URL, optionally SMTP_*.
 
 on:
   schedule:
