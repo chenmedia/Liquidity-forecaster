@@ -13,6 +13,20 @@ import os
 
 log = logging.getLogger(__name__)
 
+# Neon / Vercel-Postgres integrations expose the connection string under varying
+# names; accept the common ones so no manual DATABASE_URL wiring is needed.
+_URL_ENV_VARS = (
+    "DATABASE_URL",
+    "POSTGRES_URL",
+    "DATABASE_URL_UNPOOLED",
+    "POSTGRES_URL_NON_POOLING",
+)
+
+
+def _resolve_url() -> str | None:
+    return next((os.environ[v] for v in _URL_ENV_VARS if os.environ.get(v)), None)
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS forecast_snapshot (
     id BIGSERIAL PRIMARY KEY,
@@ -33,9 +47,9 @@ def publish_snapshot(
     payload: dict[str, object], *, database_url: str | None = None, keep: int = 30
 ) -> bool:
     """Write a forecast snapshot to Postgres. Returns False if unconfigured."""
-    url = database_url or os.environ.get("DATABASE_URL")
+    url = database_url or _resolve_url()
     if not url:
-        log.info("DATABASE_URL not set; skipping dashboard snapshot publish")
+        log.info("no database URL set; skipping dashboard snapshot publish")
         return False
 
     # Imported lazily so the package doesn't hard-require psycopg unless publishing.

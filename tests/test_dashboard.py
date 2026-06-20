@@ -35,7 +35,8 @@ def test_forecast_to_dict_is_json_serializable() -> None:
 
 
 def test_publish_skips_when_unconfigured(monkeypatch) -> None:
-    monkeypatch.delenv("DATABASE_URL", raising=False)
+    for var in publish._URL_ENV_VARS:
+        monkeypatch.delenv(var, raising=False)
     assert publish.publish_snapshot({"a": 1}) is False
 
 
