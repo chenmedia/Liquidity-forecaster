@@ -31,6 +31,11 @@ def _env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def _env_str(name: str, default: str) -> str:
+    # Empty (present-but-blank, as Actions passes unset vars) → default.
+    return os.environ.get(name) or default
+
+
 def _env_fx_rates(name: str) -> dict[str, Decimal]:
     """Parse a JSON map of currency→NOK rate, e.g. {"EUR": "11.50"}."""
     raw = os.environ.get(name)
@@ -61,7 +66,7 @@ class Config:
 
     # Folio API
     folio_base_url: str = field(
-        default_factory=lambda: os.environ.get("FOLIO_API_BASE_URL", "https://api.folio.no/v2")
+        default_factory=lambda: _env_str("FOLIO_API_BASE_URL", "https://api.folio.no/v2")
     )
     # Disambiguates which Operational account to forecast when several exist.
     operational_account: str | None = field(
@@ -69,15 +74,13 @@ class Config:
     )
 
     # Notification routing (non-secret)
-    slack_channel: str = field(default_factory=lambda: os.environ.get("SLACK_CHANNEL", "#finance"))
+    slack_channel: str = field(default_factory=lambda: _env_str("SLACK_CHANNEL", "#finance"))
     alert_email_to: str = field(
-        default_factory=lambda: os.environ.get("ALERT_EMAIL_TO", "kai@chenmedia.no")
+        default_factory=lambda: _env_str("ALERT_EMAIL_TO", "kai@chenmedia.no")
     )
 
     # Local store
-    db_path: str = field(
-        default_factory=lambda: os.environ.get("FORECAST_DB_PATH", "data/forecaster.db")
-    )
+    db_path: str = field(default_factory=lambda: _env_str("FORECAST_DB_PATH", "data/forecaster.db"))
 
     # Phase 2
     enable_baseline: bool = field(default_factory=lambda: _env_bool("FORECAST_BASELINE", True))

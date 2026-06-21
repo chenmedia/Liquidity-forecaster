@@ -2,7 +2,8 @@ name: Liquidity forecast
 
 # Runs the forecaster on a schedule and alerts #finance (with email fallback), and
 # publishes the latest forecast snapshot to Neon for the dashboard.
-# (Unset GitHub Actions vars arrive as empty strings; config tolerates that.)
+# (Unset GitHub Actions vars/secrets arrive as empty strings; config coalesces
+# both numeric and string settings to their defaults.)
 # Safe to run before secrets exist: if FOLIO_API_KEY is not configured the run
 # skips cleanly instead of failing. Provide repo Actions secrets to enable
 # (see docs/SECRETS.md): FOLIO_API_KEY, SLACK_WEBHOOK_URL, DATABASE_URL, optionally SMTP_*.
