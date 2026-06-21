@@ -12,12 +12,24 @@ from liquidity_forecaster.config import Config
 
 
 def test_empty_env_vars_fall_back_to_defaults(monkeypatch) -> None:
-    for var in ("FORECAST_FLOOR", "FORECAST_HORIZON_DAYS", "FORECAST_BASELINE"):
+    for var in (
+        "FORECAST_FLOOR",
+        "FORECAST_HORIZON_DAYS",
+        "FORECAST_BASELINE",
+        "FOLIO_API_BASE_URL",
+        "SLACK_CHANNEL",
+        "ALERT_EMAIL_TO",
+        "FORECAST_DB_PATH",
+    ):
         monkeypatch.setenv(var, "")  # present but empty, as Actions passes them
     config = Config()
     assert config.operational_floor == Decimal("250000")
     assert config.horizon_days == 56
     assert config.enable_baseline is True
+    # String fields must keep a real value, not "" (which broke the Folio HTTP call).
+    assert config.folio_base_url == "https://api.folio.no/v2"
+    assert config.slack_channel == "#finance"
+    assert config.db_path == "data/forecaster.db"
 
 
 def test_set_env_vars_override_defaults(monkeypatch) -> None:
